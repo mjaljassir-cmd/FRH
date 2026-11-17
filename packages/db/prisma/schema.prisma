@@ -1,0 +1,362 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ORGANIZER
+  STAFF
+  CUSTOMER
+}
+
+enum Locale {
+  ar
+  en
+}
+
+enum OrganizerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum EventStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  CANCELLED
+  ENDED
+}
+
+enum RefundPolicyType {
+  NO_REFUND
+  REFUNDABLE_UNTIL
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+enum TicketStatus {
+  VALID
+  USED
+  REFUNDED
+}
+
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum RefundReason {
+  CUSTOMER_REQUEST
+  EVENT_CANCELLED
+}
+
+enum NotificationTarget {
+  ALL
+  CITY
+  CATEGORY
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String
+  name           String
+  phone          String?
+  role           Role
+  locale         Locale    @default(ar)
+  isActive       Boolean   @default(true)
+  cityId         String?
+  city           City?     @relation(fields: [cityId], references: [id])
+  resetTokenHash String?
+  resetExpiresAt DateTime?
+  passwordChangedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organizer   Organizer?    @relation("OrganizerOwner")
+  staffOf     StaffMember?
+  orders      Order[]
+  favorites   Favorite[]
+  reviews     Review[]
+  pushTokens  PushToken[]
+  checkIns    Ticket[]      @relation("CheckedInBy")
+  payoutsMade Payout[]
+}
+
+model Organizer {
+  id                   String          @id @default(cuid())
+  ownerId              String          @unique
+  owner                User            @relation("OrganizerOwner", fields: [ownerId], references: [id])
+  name                 String
+  description          String?
+  logoUrl              String?
+  commercialRegNumber  String
+  commercialRegFileUrl String
+  iban                 String
+  bankName             String
+  accountHolderName    String
+  status               OrganizerStatus @default(PENDING)
+  rejectionReason      String?
+  /// Commission percentage (0-100) applied to the pre-VAT amount
+  commissionRate       Decimal         @default(10) @db.Decimal(5, 2)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  events  Event[]
+  staff   StaffMember[]
+  payouts Payout[]
+}
+
+model StaffMember {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizerId String
+  organizer   Organizer @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  nameAr    String
+  nameEn    String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  events    Event[]
+  notifications Notification[]
+}
+
+model City {
+  id        String   @id @default(cuid())
+  nameAr    String
+  nameEn    String
+  lat       Float?
+  lng       Float?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  events    Event[]
+  users     User[]
+  notifications Notification[]
+}
+
+model Event {
+  id                 String           @id @default(cuid())
+  organizerId        String
+  organizer          Organizer        @relation(fields: [organizerId], references: [id])
+  titleAr            String
+  titleEn            String
+  descriptionAr      String
+  descriptionEn      String
+  coverImageUrl      String?
+  images             EventImage[]
+  categoryId         String
+  category           Category         @relation(fields: [categoryId], references: [id])
+  cityId             String
+  city               City             @relation(fields: [cityId], references: [id])
+  venueName          String
+  address            String
+  lat                Float
+  lng                Float
+  startAt            DateTime
+  endAt              DateTime
+  refundPolicyType   RefundPolicyType @default(NO_REFUND)
+  /// Hours before startAt until which refunds are allowed (REFUNDABLE_UNTIL)
+  refundHoursBefore  Int?
+  status             EventStatus      @default(DRAFT)
+  rejectionReason    String?
+  isFeatured         Boolean          @default(false)
+  featuredUntil      DateTime?
+  reminderSentAt     DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  ticketTypes TicketType[]
+  orders      Order[]
+  favorites   Favorite[]
+  reviews     Review[]
+
+  @@index([status, startAt])
+  @@index([cityId])
+  @@index([categoryId])
+}
+
+model EventImage {
+  id        String @id @default(cuid())
+  eventId   String
+  event     Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int    @default(0)
+}
+
+model TicketType {
+  id          String    @id @default(cuid())
+  eventId     String
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  nameAr      String
+  nameEn      String
+  /// Price in halalas, VAT inclusive
+  price       Int
+  quantity    Int
+  sold        Int       @default(0)
+  salesStartAt DateTime?
+  salesEndAt  DateTime?
+  sortOrder   Int       @default(0)
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  receiptNumber     Int         @unique @default(autoincrement())
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  eventId           String
+  event             Event       @relation(fields: [eventId], references: [id])
+  status            OrderStatus @default(PENDING)
+  /// All amounts in halalas
+  totalAmount       Int
+  vatAmount         Int
+  subtotalAmount    Int
+  commissionRate    Decimal     @db.Decimal(5, 2)
+  commissionAmount  Int
+  organizerNet      Int
+  vatRate           Decimal     @db.Decimal(5, 2)
+  moyasarPaymentId  String?     @unique
+  paymentMethod     String?
+  paidAt            DateTime?
+  expiresAt         DateTime
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  items   OrderItem[]
+  tickets Ticket[]
+  refunds Refund[]
+
+  @@index([userId])
+  @@index([eventId, status])
+}
+
+model OrderItem {
+  id           String     @id @default(cuid())
+  orderId      String
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketTypeId String
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  quantity     Int
+  unitPrice    Int
+  tickets      Ticket[]
+}
+
+model Ticket {
+  id            String       @id @default(cuid())
+  orderId       String
+  order         Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItemId   String
+  orderItem     OrderItem    @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  status        TicketStatus @default(VALID)
+  checkedInAt   DateTime?
+  checkedInById String?
+  checkedInBy   User?        @relation("CheckedInBy", fields: [checkedInById], references: [id])
+  createdAt     DateTime     @default(now())
+}
+
+model Refund {
+  id              String       @id @default(cuid())
+  orderId         String
+  order           Order        @relation(fields: [orderId], references: [id])
+  amount          Int
+  reason          RefundReason
+  status          RefundStatus @default(PENDING)
+  moyasarRefundId String?
+  errorMessage    String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Payout {
+  id           String    @id @default(cuid())
+  organizerId  String
+  organizer    Organizer @relation(fields: [organizerId], references: [id])
+  amount       Int
+  reference    String
+  transferredAt DateTime
+  note         String?
+  createdById  String
+  createdBy    User      @relation(fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now())
+}
+
+model Favorite {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, eventId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  isHidden  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventId])
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  titleAr     String
+  titleEn     String
+  bodyAr      String
+  bodyEn      String
+  target      NotificationTarget
+  cityId      String?
+  city        City?              @relation(fields: [cityId], references: [id])
+  categoryId  String?
+  category    Category?          @relation(fields: [categoryId], references: [id])
+  eventId     String?
+  recipients  Int                @default(0)
+  sentById    String?
+  createdAt   DateTime           @default(now())
+}
+
+model PlatformSettings {
+  id            Int      @id @default(1)
+  nameAr        String   @default("منصة الفعاليات")
+  nameEn        String   @default("Events Platform")
+  vatNumber     String   @default("")
+  addressAr     String   @default("")
+  addressEn     String   @default("")
+  vatRate       Decimal  @default(15) @db.Decimal(5, 2)
+  updatedAt     DateTime @updatedAt
+}

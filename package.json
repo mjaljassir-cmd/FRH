@@ -1,0 +1,16 @@
+{
+  "name": "events-platform",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @events/web dev",
+    "dev:mobile": "pnpm --filter @events/mobile start",
+    "build:web": "pnpm --filter @events/web build",
+    "db:migrate": "pnpm --filter @events/db migrate",
+    "db:deploy": "pnpm --filter @events/db deploy",
+    "db:seed": "pnpm --filter @events/db seed",
+    "db:generate": "pnpm --filter @events/db generate",
+    "test": "pnpm --filter @events/shared test && pnpm --filter @events/web test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
