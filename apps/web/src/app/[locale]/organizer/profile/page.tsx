@@ -3,6 +3,7 @@ import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/client";
 import { ChangePasswordCard } from "@/components/change-password";
 import { Field, PageHeader } from "@/components/ui";
+import { FileUpload } from "@/components/file-upload";
 import { requireOrganizerPage } from "@/lib/session";
 import { updateOrganizerProfileAction } from "../actions";
 
@@ -32,13 +33,13 @@ export default async function Profile({ params }: { params: Promise<{ locale: st
               <textarea name="description" defaultValue={organizer.description ?? ""} rows={3} className="input" />
             </Field>
             <Field label={t("logo")} hint={t("optional")}>
-              <input name="logo" type="file" accept="image/*" className="input" />
+              <FileUpload name="logoUrl" folder="organizers" accept="image/jpeg,image/png,image/webp" />
             </Field>
             <Field label={t("commercialRegNumber")}>
               <input value={organizer.commercialRegNumber} disabled className="input" dir="ltr" />
             </Field>
             <Field label={t("commercialRegFile")} hint={p("replaceFileHint")}>
-              <input name="commercialRegFile" type="file" accept=".pdf,image/*" className="input" />
+              <FileUpload name="commercialRegFileUrl" folder="docs" accept="application/pdf,image/jpeg,image/png,image/webp" />
             </Field>
             <Field label={t("bankName")}>
               <input name="bankName" defaultValue={organizer.bankName} required className="input" />

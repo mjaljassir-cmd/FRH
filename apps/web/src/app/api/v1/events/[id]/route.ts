@@ -2,10 +2,13 @@ import { prisma } from "@events/db";
 import { HttpError, getCurrentUser } from "@/lib/auth";
 import { json, route } from "@/lib/api";
 import { publicEventWhere, ratingsFor } from "@/lib/events";
+import { expireStaleOrders } from "@/lib/orders";
 
 export const GET = route<{ params: Promise<{ id: string }> }>(async (_req, { params }) => {
   const { id } = await params;
   const now = new Date();
+  // Show accurate remaining tickets even if the cron job hasn't run recently
+  await expireStaleOrders(id);
   const e = await prisma.event.findFirst({
     // Past (ended) events stay viewable so attendees can review them
     where: { id, status: { in: ["PUBLISHED", "ENDED"] }, organizer: { status: "APPROVED" } },

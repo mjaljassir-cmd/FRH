@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ActionForm } from "./action-form";
 import { SubmitButton } from "./client";
+import { FileUpload } from "./file-upload";
 import type { ActionState } from "@/lib/action-state";
 
 interface Option {
@@ -171,16 +172,24 @@ export function EventForm({
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="label">{t("cover")}</label>
-            {initial?.coverImageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={initial.coverImageUrl} alt="" className="mb-2 h-32 w-full rounded-lg object-cover" />
-            )}
-            <input type="file" name="cover" accept="image/jpeg,image/png,image/webp" required={!initial?.coverImageUrl} className="input" />
+            <FileUpload
+              name="coverUrl"
+              folder="events"
+              accept="image/jpeg,image/png,image/webp"
+              initial={initial?.coverImageUrl ? [initial.coverImageUrl] : []}
+              testId="upload-cover"
+            />
             <p className="mt-1 text-xs text-slate-500">{t("imageHint")}</p>
           </div>
           <div>
             <label className="label">{t("gallery")}</label>
-            <input type="file" name="gallery" accept="image/jpeg,image/png,image/webp" multiple className="input" />
+            <FileUpload
+              name="galleryUrl"
+              folder="events"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              max={Math.max(0, 10 - (initial?.images.length ?? 0))}
+            />
             {initial?.images.length ? (
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {initial.images.map((img) => (

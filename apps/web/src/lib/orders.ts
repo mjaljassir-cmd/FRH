@@ -43,6 +43,9 @@ export async function createOrder(userId: string, input: { eventId: string; item
   }
   if (event.endAt <= now) throw new HttpError(400, "EVENT_ENDED");
 
+  // The cron job may run only once a day (Vercel Hobby), so free expired holds right here
+  await expireStaleOrders(event.id);
+
   // Merge duplicate lines
   const merged = new Map<string, number>();
   for (const it of input.items) merged.set(it.ticketTypeId, (merged.get(it.ticketTypeId) ?? 0) + it.quantity);
@@ -154,9 +157,10 @@ export async function failOrder(orderId: string) {
   });
 }
 
-export async function expireStaleOrders() {
+/** Release tickets held by unpaid orders whose 15-minute hold has passed (optionally for one event). */
+export async function expireStaleOrders(eventId?: string) {
   const stale = await prisma.order.findMany({
-    where: { status: "PENDING", expiresAt: { lt: new Date() } },
+    where: { status: "PENDING", expiresAt: { lt: new Date() }, ...(eventId ? { eventId } : {}) },
     select: { id: true },
   });
   for (const o of stale) {

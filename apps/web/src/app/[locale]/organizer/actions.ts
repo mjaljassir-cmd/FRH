@@ -10,7 +10,7 @@ import { HttpError, hashPassword, requireUser } from "@/lib/auth";
 import { safeAction, type ActionState } from "@/lib/action-state";
 import { fromRiyadhInput } from "@/lib/i18n-helpers";
 import { cancelEvent } from "@/lib/orders";
-import { saveUpload } from "@/lib/storage";
+import { assertOwnUploadUrl, formUploadUrl } from "@/lib/storage";
 import { checkInTicket, type CheckInResult } from "@/lib/checkin";
 
 async function owner(approved = true) {
@@ -99,12 +99,17 @@ export async function saveEventAction(_: ActionState, fd: FormData): Promise<Act
     }
 
     // Images
-    const cover = fd.get("cover");
-    const coverImageUrl = cover instanceof File && cover.size > 0 ? await saveUpload(cover, "events") : existing?.coverImageUrl ?? null;
+    // Files were uploaded from the browser; we only receive and verify their URLs
+    const coverField = String(fd.get("coverUrl") ?? "");
+    const coverImageUrl =
+      existing?.coverImageUrl && coverField === existing.coverImageUrl ? existing.coverImageUrl : formUploadUrl(fd, "coverUrl", "events");
     if (!coverImageUrl) throw new HttpError(400, "COVER_REQUIRED");
-    const gallery = fd.getAll("gallery").filter((f): f is File => f instanceof File && f.size > 0);
-    if (gallery.length > 10) throw new HttpError(400, "TOO_MANY_IMAGES");
-    const galleryUrls = await Promise.all(gallery.map((f) => saveUpload(f, "events")));
+    const galleryUrls = fd
+      .getAll("galleryUrl")
+      .map(String)
+      .filter(Boolean)
+      .map((u) => assertOwnUploadUrl(u, "events"));
+    if (galleryUrls.length > 10) throw new HttpError(400, "TOO_MANY_IMAGES");
     const removeImages = fd.getAll("removeImage").map(String);
 
     const ticketRows = tickets.map((tk, i) => {
@@ -310,10 +315,10 @@ export async function updateOrganizerProfileAction(_: ActionState, fd: FormData)
           .pipe(z.string().regex(/^SA\d{22}$/)),
       })
       .parse(Object.fromEntries(fd));
-    const logo = fd.get("logo");
-    const logoUrl = logo instanceof File && logo.size > 0 ? await saveUpload(logo, "organizers") : undefined;
-    const doc = fd.get("commercialRegFile");
-    const docUrl = doc instanceof File && doc.size > 0 ? await saveUpload(doc, "docs", true) : undefined;
+    const logoField = String(fd.get("logoUrl") ?? "");
+    const logoUrl = logoField && logoField !== organizer.logoUrl ? formUploadUrl(fd, "logoUrl", "organizers") : undefined;
+    const docField = String(fd.get("commercialRegFileUrl") ?? "");
+    const docUrl = docField && docField !== organizer.commercialRegFileUrl ? formUploadUrl(fd, "commercialRegFileUrl", "docs") : undefined;
     await prisma.organizer.update({
       where: { id: organizer.id },
       data: {

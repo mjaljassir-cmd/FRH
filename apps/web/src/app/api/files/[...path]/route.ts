@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 
 const TYPES: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf" };
 
-/** Serves locally stored uploads (used only when S3 is not configured). */
+/** Serves locally stored uploads (development only — on Vercel files live in Vercel Blob). */
 export async function GET(_req: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const parts = (await params).path;
   const full = path.join(UPLOAD_DIR, ...parts);

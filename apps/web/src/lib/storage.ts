@@ -1,47 +1,86 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { env } from "./env";
 
-export const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+/**
+ * File storage.
+ * - Production (Vercel): files go straight from the browser to Vercel Blob (see /api/uploads),
+ *   so they never pass through a serverless function (4.5 MB request limit).
+ * - Development (no BLOB_READ_WRITE_TOKEN): files are posted to /api/uploads and saved under ./uploads.
+ * Server actions only ever receive URLs, which are checked with assertOwnUploadUrl().
+ */
 
-const ALLOWED: Record<string, string> = {
+export const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+export type UploadFolder = "events" | "organizers" | "docs";
+
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+export const ALLOWED_TYPES: Record<UploadFolder, string[]> = {
+  events: IMAGE_TYPES,
+  organizers: IMAGE_TYPES,
+  docs: [...IMAGE_TYPES, "application/pdf"],
+};
+
+const EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "application/pdf": "pdf",
 };
 
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-
 export class UploadError extends Error {}
 
-/** Store an uploaded file and return its public URL. */
-export async function saveUpload(file: File, folder: "events" | "organizers" | "docs", allowPdf = false) {
-  const ext = ALLOWED[file.type];
-  if (!ext || (ext === "pdf" && !allowPdf)) throw new UploadError("INVALID_FILE_TYPE");
+export const blobEnabled = () => !!process.env.BLOB_READ_WRITE_TOKEN;
+
+export function isUploadFolder(v: unknown): v is UploadFolder {
+  return v === "events" || v === "organizers" || v === "docs";
+}
+
+/** Store id is embedded in the read-write token: vercel_blob_rw_<storeId>_<secret> */
+function blobStoreId(): string | null {
+  const m = (process.env.BLOB_READ_WRITE_TOKEN || "").match(/^vercel_blob_rw_([a-z0-9]+)_/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+/** Save a file on local disk (development) and return its URL. */
+export async function saveLocalUpload(file: File, folder: UploadFolder) {
+  if (!ALLOWED_TYPES[folder].includes(file.type)) throw new UploadError("INVALID_FILE_TYPE");
   if (file.size > MAX_UPLOAD_BYTES) throw new UploadError("FILE_TOO_LARGE");
-  const key = `${folder}/${randomUUID()}.${ext}`;
-  const body = Buffer.from(await file.arrayBuffer());
-
-  if (process.env.S3_BUCKET) {
-    const client = new S3Client({
-      region: process.env.S3_REGION || "auto",
-      endpoint: process.env.S3_ENDPOINT || undefined,
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID || "",
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "",
-      },
-    });
-    await client.send(
-      new PutObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key, Body: body, ContentType: file.type }),
-    );
-    return `${(process.env.S3_PUBLIC_URL || "").replace(/\/$/, "")}/${key}`;
-  }
-
+  const key = `${folder}/${randomUUID()}.${EXT[file.type]}`;
   const full = path.join(UPLOAD_DIR, key);
   await mkdir(path.dirname(full), { recursive: true });
-  await writeFile(full, body);
+  await writeFile(full, Buffer.from(await file.arrayBuffer()));
   return `${env.appUrl}/api/files/${key}`;
+}
+
+/** Throw unless `url` points at a file we stored in the given folder. */
+export function assertOwnUploadUrl(url: string, folder: UploadFolder): string {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    throw new UploadError("INVALID_FILE_URL");
+  }
+  if (blobEnabled()) {
+    const store = blobStoreId();
+    const hostOk = store
+      ? u.hostname === `${store}.public.blob.vercel-storage.com`
+      : u.hostname.endsWith(".public.blob.vercel-storage.com");
+    if (u.protocol !== "https:" || !hostOk || !u.pathname.startsWith(`/${folder}/`)) {
+      throw new UploadError("INVALID_FILE_URL");
+    }
+    return u.toString();
+  }
+  if (!url.startsWith(`${env.appUrl}/api/files/${folder}/`) || u.pathname.includes("..") || u.search) {
+    throw new UploadError("INVALID_FILE_URL");
+  }
+  return u.toString();
+}
+
+/** Read an optional single URL field from a form. */
+export function formUploadUrl(fd: FormData, name: string, folder: UploadFolder): string | null {
+  const v = String(fd.get(name) ?? "").trim();
+  return v ? assertOwnUploadUrl(v, folder) : null;
 }

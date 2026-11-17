@@ -68,7 +68,8 @@ try {
   await org.fill('input[name="password"]', pw);
   await org.fill('input[name="orgName"]', `E2E Org ${run}`);
   await org.fill('input[name="commercialRegNumber"]', "1010123456");
-  await org.setInputFiles('input[name="commercialRegFile"]', { name: "cr.pdf", mimeType: "application/pdf", buffer: pdf });
+  await org.setInputFiles('[data-testid="upload-cr"] input[type="file"]', { name: "cr.pdf", mimeType: "application/pdf", buffer: pdf });
+  await org.waitForSelector('[data-testid="upload-cr"][data-count="1"][data-uploading="0"]');
   await org.fill('input[name="bankName"]', "Bank");
   await org.fill('input[name="accountHolderName"]', "E2E Org");
   await org.fill('input[name="iban"]', "SA03 8000 0000 6080 1016 7519");
@@ -76,6 +77,14 @@ try {
   check((await org.textContent("main")).includes("قيد المراجعة"), "Organizer sees pending-review notice");
   await org.goto(`${BASE}/ar/organizer/events/new`);
   check(org.url().endsWith("/ar/organizer"), "Unapproved organizer can't create events");
+
+  const forged = await org.evaluate(async () => {
+    const fd = new FormData();
+    fd.append("folder", "events");
+    fd.append("file", new File(["x"], "x.png", { type: "image/png" }));
+    return (await fetch("/api/uploads", { method: "POST", body: fd })).status;
+  });
+  check(forged === 403, "Unapproved organizer can't upload event images");
 
   // ---------- 2. Admin approves organizer ----------
   console.log("2. Admin approval");
@@ -104,7 +113,8 @@ try {
   await org.fill('input[name="endAt"]', riyadhLocal(7, 22));
   await org.fill('input[name="venueName"]', "Test Venue");
   await org.fill('input[name="address"]', "Test Address");
-  await org.setInputFiles('input[name="cover"]', { name: "c.png", mimeType: "image/png", buffer: png });
+  await org.setInputFiles('[data-testid="upload-cover"] input[type="file"]', { name: "c.png", mimeType: "image/png", buffer: png });
+  await org.waitForSelector('[data-testid="upload-cover"][data-count="1"][data-uploading="0"]');
   await org.fill('input[name="tickets[0][nameAr]"]', "عادي");
   await org.fill('input[name="tickets[0][nameEn]"]', "Standard");
   await org.fill('input[name="tickets[0][price]"]', "115");

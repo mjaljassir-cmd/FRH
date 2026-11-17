@@ -7,7 +7,7 @@ import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { HttpError, clearSessionCookie, hashPassword, setSessionCookie, signToken, verifyPassword } from "@/lib/auth";
 import { safeAction, type ActionState } from "@/lib/action-state";
-import { saveUpload } from "@/lib/storage";
+import { formUploadUrl } from "@/lib/storage";
 import { homeFor } from "@/lib/session";
 import { completePasswordReset, startPasswordReset } from "@/lib/password-reset";
 
@@ -57,12 +57,10 @@ export async function registerOrganizerAction(_: ActionState, fd: FormData): Pro
   let done = false;
   const res = await safeAction(async () => {
     const body = organizerRegisterSchema.parse(Object.fromEntries(fd));
-    const file = fd.get("commercialRegFile");
-    if (!(file instanceof File) || file.size === 0) throw new HttpError(400, "FILE_REQUIRED");
+    const docUrl = formUploadUrl(fd, "commercialRegFileUrl", "docs");
+    if (!docUrl) throw new HttpError(400, "FILE_REQUIRED");
+    const logoUrl = formUploadUrl(fd, "logoUrl", "organizers");
     if (await prisma.user.findUnique({ where: { email: body.email } })) throw new HttpError(409, "EMAIL_TAKEN");
-    const docUrl = await saveUpload(file, "docs", true);
-    const logo = fd.get("logo");
-    const logoUrl = logo instanceof File && logo.size > 0 ? await saveUpload(logo, "organizers") : null;
     const user = await prisma.user.create({
       data: {
         name: body.name,

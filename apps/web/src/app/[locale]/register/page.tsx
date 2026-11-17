@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { ActionForm } from "@/components/action-form";
 import { SubmitButton } from "@/components/client";
 import { Field } from "@/components/ui";
+import { FileUpload } from "@/components/file-upload";
 import { AuthShell } from "../auth-shell";
 import { registerOrganizerAction } from "../auth-actions";
 
@@ -38,10 +39,10 @@ export default async function RegisterPage({ params }: { params: Promise<{ local
             <input name="commercialRegNumber" required className="input" dir="ltr" />
           </Field>
           <Field label={t("commercialRegFile")} hint={t("fileHint")}>
-            <input name="commercialRegFile" type="file" required accept=".pdf,image/*" className="input" />
+            <FileUpload name="commercialRegFileUrl" folder="docs" accept="application/pdf,image/jpeg,image/png,image/webp" testId="upload-cr" />
           </Field>
           <Field label={t("logo")} hint={t("optional")}>
-            <input name="logo" type="file" accept="image/*" className="input" />
+            <FileUpload name="logoUrl" folder="organizers" accept="image/jpeg,image/png,image/webp" />
           </Field>
         </div>
         <Field label={t("orgDescription")} hint={t("optional")}>

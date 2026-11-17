@@ -130,7 +130,9 @@
     "REFUND_IN_PROGRESS": "A refund is already in progress",
     "REFUND_FAILED": "Refund failed at the payment gateway",
     "NOT_ATTENDED": "You can review after attending",
-    "ALREADY_REVIEWED": "You already reviewed this event"
+    "ALREADY_REVIEWED": "You already reviewed this event",
+    "INVALID_FILE_URL": "Invalid attached file, please upload it again",
+    "UPLOAD_FAILED": "Upload failed, please try again"
   },
   "pay": {
     "title": "Complete payment",
@@ -148,6 +150,10 @@
     "resultFailed": "Payment wasn't completed. You can try again.",
     "resultSoldOutRefunded": "Tickets sold out before payment completed; your payment was refunded.",
     "returnToApp": "You can return to the app now."
+  },
+  "upload": {
+    "uploading": "Uploading…",
+    "remove": "Remove"
   },
   "admin": {
     "nav": {
