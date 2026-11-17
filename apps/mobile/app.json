@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Events",
+    "slug": "events-platform",
+    "scheme": "eventsapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.example.events",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Used to show events near you. / لعرض الفعاليات القريبة منك.",
+        "CFBundleAllowMixedLocalizations": true
+      }
+    },
+    "android": {
+      "package": "com.example.events",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "config": {
+        "googleMaps": { "apiKey": "" }
+      }
+    },
+    "extra": {
+      "supportsRTL": true,
+      "forcesRTL": false,
+      "apiUrl": "http://localhost:3000",
+      "eas": { "projectId": "" }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      "expo-localization",
+      "expo-web-browser",
+      "expo-image",
+      [
+        "expo-location",
+        { "locationWhenInUsePermission": "Used to show events near you. / لعرض الفعاليات القريبة منك." }
+      ],
+      "expo-notifications"
+    ]
+  }
+}
